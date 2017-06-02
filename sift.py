@@ -1,70 +1,42 @@
-# -*- coding: utf-8 -*-
-"""
-Created on Thu Jun  1 13:32:09 2017
 
-@author: shirmanov
-"""
+# Convenience functions to run a grid search over the classiers and over K in KMeans
 
-import cv2
-import numpy as np
-import matplotlib.pyplot as plt
+import sift_classifier as bow
+from sklearn.cluster import MiniBatchKMeans
+from sklearn.svm import SVC
+from sklearn.model_selection import train_test_split, GridSearchCV
+import warnings
 
-leaf_1 = cv2.imread('Acer_Opalus1.jpg')
-leaf_2 = cv2.imread('Acer_Opalus2.jpg')
+def cluster_and_split(labeled_img_paths, y, K):
+    """Cluster into K clusters, then split into train/test/val"""
+    # MiniBatchKMeans annoyingly throws tons of deprecation warnings that fill up the notebook. Ignore them.
+    warnings.filterwarnings('ignore')
 
-def show_rgb_img(img):
-    return plt.imshow(cv2.cvtColor(img, cv2.CV_32S))
+    X, cluster_model = bow.cluster_features(
+        labeled_img_paths,
+        cluster_model=MiniBatchKMeans(n_clusters=K)
+    )
 
-def to_gray(color_img):
-    gray = cv2.cvtColor(color_img, cv2.COLOR_BGR2GRAY)
-    return gray
+    warnings.filterwarnings('default')
 
-leaf_1_gray = to_gray(leaf_1)
-leaf_2_gray = to_gray(leaf_2)
+    X_train, X_test, y_train, y_test = train_test_split(X, y, test_size=0.3)
 
-plt.imshow(leaf_1_gray, cmap='gray')
+    return X_train, X_test, y_train, y_test, cluster_model
 
-def gen_sift_features(gray_img):
-    sift = cv2.xfeatures2d.SIFT_create()
-    kp, desc = sift.detectAndCompute(gray_img, None)
-    return kp, desc
+def run_svm(X_train, X_test, y_train, y_test, scoring,
+    c_vals=[1, 5, 10], gamma_vals=[0.1, 0.01, 0.0001, 0.00001]):
 
-def show_sift_features(gray_img, color_img, kp):
-    return plt.imshow(
-            cv2.drawKeypoints(
-                    gray_img, kp, color_img.copy()))
-    
-leaf_1_kp, leaf_1_desc = gen_sift_features(leaf_1_gray)
-leaf_2_kp, leaf_2_desc = gen_sift_features(leaf_2_gray)
+    param_grid = [
+      {'C': c_vals, 'kernel': ['linear']},
+      {'C': c_vals, 'gamma': gamma_vals, 'kernel': ['rbf']},
+     ]
 
-print('Here are what our SIFT features look like for the leaf 1 image')
-show_sift_features(leaf_1_gray, leaf_1, leaf_1_kp)
+    svc = GridSearchCV(SVC(), param_grid, n_jobs=-1, scoring=scoring)
+    svc.fit(X_train, y_train)
+    print('train score (%s):'%scoring, svc.score(X_train, y_train))
+    test_score = svc.score(X_test, y_test)
+    print('test score (%s):'%scoring, test_score)
 
-bf = cv2.BFMatcher(cv2.NORM_L2, crossCheck=True)
+    print(svc.best_estimator_)
 
-matches = bf.match(leaf_1_desc, leaf_2_desc)
-matches = sorted(matches, key = lambda x: x.distance)
-
-N_MATCHES = 100
-
-match_img = cv2.drawMatches(
-        leaf_1, leaf_1_kp,
-        leaf_2, leaf_2_kp,
-        matches[:N_MATCHES], leaf_2.copy(), flags=0)
-
-plt.figure(figsize=(12, 6))
-plt.imshow(match_img)
-
-def explain_keypoint(kp):
-    print('angle\n', kp.angle)
-    print('\nclass_id\n', kp.class_id)
-    print('\noctave (image scale where feature is strongest)\n', kp.octave)
-    print('\npt (x, y)\n', kp.pt)
-    print('\nresponse\n', kp.response)
-    print('\nsize\n', kp.size)
-    
-print(
-      'this is an example of a single SIFT keypoint:\n* * *',
-      explain_keypoint(leaf_1_kp[0]))
-
-plt.imshow(leaf_1_desc[0].reshape(16, 8), interpolation='none')
+    return svc, test_score
