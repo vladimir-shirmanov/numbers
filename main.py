@@ -11,6 +11,6 @@ import sift as s
 labeled_img_paths = sc.gen_labeled_img_paths()
 y = [x[1] for x in labeled_img_paths]
 
-X_train, X_test, y_train, y_test, cluster_model = s.cluster_and_split(labeled_img_paths, y, 100)
+X_train, X_test, y_train, y_test, cluster_model = s.cluster_and_split(labeled_img_paths, y, 500)
 
 svm, test_score = s.run_svm(X_train, X_test, y_train, y_test, None)
