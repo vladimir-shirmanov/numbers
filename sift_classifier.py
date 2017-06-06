@@ -17,7 +17,7 @@ def gen_labeled_img_paths():
     df['species_id'] = df['species'].replace(labeled_keys)
     return [['images/{}.jpg'.format(path), label] 
              for path, label 
-             in zip(df['id'][:20], df['species_id'][:20])]
+             in zip(df['id'], df['species_id'])]
 
 
 def gen_sift_features(labeled_img_paths):
